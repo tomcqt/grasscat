@@ -553,6 +553,13 @@ client.on("messageCreate", async (message) => {
         fs.writeFileSync(NUMBER_FILE, `0\n${bestNum}\n`, "utf8");
       } else {
         await message.react("<:yippee:1393457234779967508>");
+        // stop typing by sending invisible message and deleting it
+        await message.channel
+          .send({
+            content: "|| ||",
+            allowedMentions: { users: [] },
+          })
+          .then((msg) => msg.delete().catch(() => {}));
         const newBest = mathNum > bestNum ? mathNum : bestNum;
         fs.writeFileSync(
           NUMBER_FILE,
@@ -572,6 +579,7 @@ client.on("messageCreate", async (message) => {
       // remove reaction after 5s
       setTimeout(async () => {
         await messageSent.delete().catch(() => {});
+        await message.delete().catch(() => {});
       }, 5000);
     }
     // If not math, do nothing (let chatting messages stay)
