@@ -1,7 +1,7 @@
 import { spawn } from "child_process";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
-import Log from "../util/log.js";
+// import Log from "../util/log.js"; // replaced this with console.log
 
 // ========================= //
 // = Copyright (c) NullDev = //
@@ -11,6 +11,7 @@ import Log from "../util/log.js";
 // robbed from NullDev's code, you can find it here:
 // https://github.com/NullDev/Arithmetica-Bot/blob/master/src/util/mathEval.js
 // :3 thx NullDev
+// (anything else with Copyright (c) NullDev is also from NullDev's code, I just copied it over to my repo)
 // :end message from tomcat
 
 const computationLimitSecs = 5;
@@ -68,7 +69,7 @@ async function mathEval(expr) {
         const result = JSON.parse(output);
         resolve(result);
       } catch (e) {
-        Log.error("Error in MathEval: ", e);
+        console.log("Error in MathEval: ", e);
         resolve({
           result: null,
           error: "Failed to parse worker output",

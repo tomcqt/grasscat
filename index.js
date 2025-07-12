@@ -425,6 +425,8 @@ client.on("messageCreate", async (message) => {
   }
 
   if (message.channel.id === COUNTING_CHANNEL_ID) {
+    // show up as typing
+    await message.channel.sendTyping();
     // Read current number, best streak, and last user ID from number.txt
     let currentNum = 0,
       bestNum = 0,
@@ -496,15 +498,25 @@ client.on("messageCreate", async (message) => {
     let mathNum;
     let isMath = true;
     let mathNumOld;
+    let errorMessage;
     try {
       // Try to evaluate as math expression
       mathNumOld = await mathEval(numericExpr);
+      console.log(mathNumOld);
       if (mathNumOld.result !== null) {
         mathNum = Math.round(mathNumOld.result);
+        isMath =
+          typeof mathNumOld.result === "number" && !isNaN(mathNumOld.result);
+      } else {
+        isMath = false;
       }
-      mathNum = Math.round(mathNumOld);
-      if (typeof mathNumOld !== "number" || isNaN(mathNumOld)) isMath = false;
-    } catch {
+      errorMessage = mathNumOld.error || null;
+    } catch (err) {
+      console.error(
+        "Error evaluating math expression:",
+        numericExpr,
+        err.message
+      );
       isMath = false;
     }
 
@@ -549,14 +561,18 @@ client.on("messageCreate", async (message) => {
         );
       }
     } else {
-      await message.react("<:__:1393456922820349953>");
+      const messageSent = await message.channel.send({
+        content: `<@${
+          message.author.id
+        }> I couldn't evaluate that as a number! <:__:1393456922820349953>\nError: ${
+          errorMessage || "Unknown error"
+        }  `,
+        allowedMentions: { users: [message.author.id] },
+      });
       // remove reaction after 5s
-      setTimeout(() => {
-        const reaction = message.reactions.cache.get("1393456922820349953");
-        if (reaction) {
-          reaction.users.remove(client.user.id).catch(() => {});
-        }
-      }, 2000);
+      setTimeout(async () => {
+        await messageSent.delete().catch(() => {});
+      }, 5000);
     }
     // If not math, do nothing (let chatting messages stay)
   }
