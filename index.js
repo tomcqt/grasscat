@@ -91,7 +91,7 @@ const client = new Client({
 const commands = [
   new SlashCommandBuilder()
     .setName("warn")
-    .setDescription("Warn a user")
+    .setDescription("Warn a user (admin only)")
     .addUserOption((opt) =>
       opt.setName("user").setDescription("User to warn").setRequired(true)
     )
@@ -117,6 +117,15 @@ const commands = [
         .setName("amount")
         .setDescription("Number of messages to delete (max 100)")
         .setRequired(true)
+    ),
+  new SlashCommandBuilder()
+    .setName("dm")
+    .setDescription("Send a DM to a user (admin only)")
+    .addUserOption((opt) =>
+      opt.setName("user").setDescription("User to DM").setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName("message").setDescription("Message to send").setRequired(true)
     ),
 ].map((cmd) => cmd.toJSON());
 
@@ -424,6 +433,48 @@ client.on("interactionCreate", async (interaction) => {
       content: `Deleted ${fetched.size} messages.`,
       ephemeral: true,
     });
+  }
+
+  if (interaction.commandName === "dm") {
+    // Check for administrator permission
+    if (!interaction.member.permissions.has("Administrator")) {
+      await interaction.reply({
+        content: "You need to be an administrator to use this command.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const user = interaction.options.getUser("user");
+    const messageContent = interaction.options.getString("message");
+
+    // Send DM
+    try {
+      // make the dm into a fancy embed
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0x57f287) // green
+        .setTitle("You got a message!")
+        .setDescription(messageContent)
+        .setFooter({
+          text: `Sent by <@${interaction.user.id}> (${interaction.user.displayName})`,
+        })
+        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
+        .setTimestamp();
+      await user.send({ embeds: [dmEmbed] });
+      await interaction.reply({
+        content: `DM sent to <@${user.id}>. Content:`,
+        embeds: [dmEmbed],
+        allowedMentions: { users: [user.id] },
+        ephemeral: true,
+      });
+    } catch (err) {
+      console.error("Failed to send DM:", err);
+      await interaction.reply({
+        content: `Failed to send DM to <@${user.id}>. They may have DMs closed.`,
+        allowedMentions: { users: [user.id] },
+        ephemeral: true,
+      });
+    }
   }
 });
 
