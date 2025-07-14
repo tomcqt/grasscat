@@ -8,6 +8,9 @@ const {
   ActivityType,
   EmbedBuilder,
   ButtonBuilder,
+  Partials,
+  PermissionsBitField,
+  ChannelType,
 } = require("discord.js");
 const mathjs = require("mathjs"); // worse math processor but worked for a while :P
 const fs = require("fs");
@@ -22,6 +25,8 @@ const GUILD_ID = process.env.GUILD_ID;
 const WELCOME_CHANNEL_ID = "1380865201817125025";
 const COUNTING_CHANNEL_ID = "1392847290435375246";
 const NUMBER_FILE = path.join(__dirname, "number.txt");
+const MODMAIL_CATEGORY_ID = "1394427797975597266"; // replace with your modmail category ID
+
 const db = new Database(path.join(__dirname, "warnings.db"));
 
 let countState = {
@@ -85,6 +90,14 @@ const client = new Client({
     GatewayIntentBits.AutoModerationConfiguration,
     GatewayIntentBits.AutoModerationExecution,
   ],
+  partials: [
+    Partials.User,
+    Partials.Channel,
+    Partials.GuildMember,
+    Partials.GuildScheduledEvent,
+    Partials.Message,
+    Partials.Reaction,
+  ],
 });
 
 // Register slash commands
@@ -123,9 +136,6 @@ const commands = [
     .setDescription("Send a DM to a user (admin only)")
     .addUserOption((opt) =>
       opt.setName("user").setDescription("User to DM").setRequired(true)
-    )
-    .addStringOption((opt) =>
-      opt.setName("message").setDescription("Message to send").setRequired(true)
     ),
 ].map((cmd) => cmd.toJSON());
 
@@ -446,35 +456,48 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     const user = interaction.options.getUser("user");
-    const messageContent = interaction.options.getString("message");
 
-    // Send DM
-    try {
-      // make the dm into a fancy embed
-      const dmEmbed = new EmbedBuilder()
-        .setColor(0x57f287) // green
-        .setTitle("You got a message!")
-        .setDescription(messageContent)
-        .setFooter({
-          text: `Sent by <@${interaction.user.id}> (${interaction.user.displayName})`,
-        })
-        .setThumbnail(interaction.user.displayAvatarURL({ dynamic: true }))
-        .setTimestamp();
-      await user.send({ embeds: [dmEmbed] });
-      await interaction.reply({
-        content: `DM sent to <@${user.id}>. Content:`,
-        embeds: [dmEmbed],
-        allowedMentions: { users: [user.id] },
-        ephemeral: true,
-      });
-    } catch (err) {
-      console.error("Failed to send DM:", err);
-      await interaction.reply({
-        content: `Failed to send DM to <@${user.id}>. They may have DMs closed.`,
-        allowedMentions: { users: [user.id] },
-        ephemeral: true,
+    // create channel
+    const guild = await client.guilds.fetch(GUILD_ID);
+    const dmChannelName = `dm-${user.id}`;
+    let dmChannel = guild.channels.cache.find(
+      (ch) => ch.name === dmChannelName && ch.type === ChannelType.GuildText
+    );
+    if (!dmChannel) {
+      // Create the channel if it doesn't exist and put it under the "ModMail" category
+      dmChannel = await guild.channels.create({
+        name: dmChannelName,
+        type: ChannelType.GuildText,
+        parent: MODMAIL_CATEGORY_ID, // this already is private
+        permissionOverwrites: [
+          {
+            id: guild.id,
+            deny: [PermissionsBitField.Flags.ViewChannel], // Deny view for everyone by default
+          },
+        ],
       });
     }
+    await interaction.reply(
+      `Channel created or found successfully! <#${dmChannel.id}>`
+    );
+    const dmChannelEmbed = new EmbedBuilder()
+      .setColor(0x57f287) // green
+      .setTitle("DM Channel Created!")
+      .setDescription(
+        `This channel is for DMs with <@${user.id}>. You can send messages here to DM them, or press the button on this message to delete the channel.`
+      )
+      .setFooter({ text: `DM Channel for ${user.tag}` })
+      .setTimestamp();
+    await dmChannel.send({
+      content: `This channel is for DMs with <@${user.id}>. You can send messages here to DM them, or press the button on this message to delete the channel.`,
+      embeds: [dmChannelEmbed],
+      components: [
+        new ButtonBuilder()
+          .setCustomId("delete_dm_channel")
+          .setLabel("Delete Channel")
+          .setStyle("Danger"),
+      ],
+    });
   }
 });
 
@@ -519,6 +542,77 @@ client.on("messageCreate", async (message) => {
         });
       }
     });
+  }
+
+  // dms
+  if (!message.guild) {
+    console.log("caught dm");
+    // send message to dm channel or create one then send if it doesnt exist
+    const guild = await client.guilds.fetch(GUILD_ID);
+    const dmChannelName = `dm-${message.author.id}`;
+    let dmChannel = guild.channels.cache.find(
+      (ch) => ch.name === dmChannelName && ch.type === ChannelType.GuildText
+    );
+    if (!dmChannel) {
+      // Create the channel if it doesn't exist and put it under the "ModMail" category
+      dmChannel = await guild.channels.create({
+        name: dmChannelName,
+        type: ChannelType.GuildText,
+        parent: MODMAIL_CATEGORY_ID, // this already is private
+        permissionOverwrites: [
+          {
+            id: guild.id,
+            deny: [PermissionsBitField.Flags.ViewChannel], // Deny view for everyone by default
+          },
+        ],
+      });
+    }
+    // send the message to the dm channel
+    const dmEmbed = new EmbedBuilder()
+      .setColor(0x57f287) // green
+      .setTitle("New DM")
+      .setDescription(message.content)
+      .setAuthor({
+        name: message.author.tag,
+        iconURL: message.author.displayAvatarURL({ dynamic: true }),
+      })
+      .setFooter({ text: `DM from ${message.author.id}` })
+      .setTimestamp();
+    await dmChannel.send({
+      content: `New DM from <@${message.author.id}>:`,
+      embeds: [dmEmbed],
+    });
+  }
+
+  if (message.channel.name.startsWith("dm-")) {
+    // This is a DM channel, handle it
+    const userId = message.channel.name.replace("dm-", "");
+    const user = await client.users.fetch(userId).catch(() => null);
+    // Send DM
+    try {
+      // make the dm into a fancy embed
+      const dmEmbed = new EmbedBuilder()
+        .setColor(0x57f287) // green
+        .setTitle(message.content)
+        .setAuthor({
+          name: `${message.author.displayName} (@${message.author.tag})`,
+          iconURL: message.author.displayAvatarURL({ dynamic: true }),
+        })
+        .setFooter({ text: `DM sent from Cat's Community` })
+        .setTimestamp();
+      await user.send({ embeds: [dmEmbed] });
+      await message.channel.send({
+        content: `DM sent to <@${user.id}>. Content:`,
+        embeds: [dmEmbed],
+      });
+      await message.delete();
+    } catch (err) {
+      console.error("Failed to send DM:", err);
+      await message.channel.send({
+        content: `Failed to send DM to <@${user.id}>. They may have DMs closed.`,
+        allowedMentions: { users: [user.id] },
+      });
+    }
   }
 
   if (message.channel.id === COUNTING_CHANNEL_ID) {
@@ -770,6 +864,25 @@ client.on("guildMemberUpdate", async (oldMember, newMember) => {
       } else {
         console.error("Donator role not found!");
       }
+    }
+  }
+});
+
+// buttons
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.customId === "delete_dm_channel") {
+    // Delete the channel
+    const channel = interaction.channel;
+    try {
+      await channel.delete();
+    } catch (err) {
+      console.error("Failed to delete channel:", err);
+      await interaction.reply({
+        content: `Failed to delete channel ${channel.name}.`,
+        ephemeral: true,
+      });
     }
   }
 });
