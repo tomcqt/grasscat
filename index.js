@@ -24,6 +24,13 @@ const COUNTING_CHANNEL_ID = "1392847290435375246";
 const NUMBER_FILE = path.join(__dirname, "number.txt");
 const db = new Database(path.join(__dirname, "warnings.db"));
 
+let countState = {
+  currentNum: 0,
+  bestNum: 0,
+  lastUserId: "",
+  lastSaved: 0,
+};
+
 // Create table if not exists
 db.prepare(
   `
@@ -40,6 +47,20 @@ db.prepare(
 // create number.txt if not exists
 if (!fs.existsSync(NUMBER_FILE)) {
   fs.writeFileSync(NUMBER_FILE, "0\n0\n", "utf8");
+}
+
+try {
+  const lines = fs.readFileSync(NUMBER_FILE, "utf8").trim().split("\n");
+  countState.currentNum = parseInt(lines[0]) || 0;
+  countState.bestNum = parseInt(lines[1]) || 0;
+  countState.lastUserId = lines[2] || "";
+} catch {
+  countState = {
+    currentNum: 0,
+    bestNum: 0,
+    lastUserId: "",
+    lastSaved: Date.now(),
+  };
 }
 
 const client = new Client({
@@ -413,41 +434,49 @@ client.on("messageCreate", async (message) => {
   // Check if the bot is mentioned
   if (message.mentions.has(client.user)) {
     // Your response or logic here
-    await message.reply({
+    const sillyMessage = await message.reply({
       content:
         `## hey twin, i'm <@${client.user.id}>!\n` +
         " i manage this server and can help you with certain things!\n" +
         "- if you need help, you can do `/help` to see what i can do, or press the button below.\n" +
         "- if you want to see my source code, you can do `/source`.\n" +
-        "-# :3 (written by <@1059605055411601429>)",
+        "-# :3 (written by <@1059605055411601429>)\n" +
+        "you can react with :x: to delete this message.",
       allowedMentions: { repliedUser: false },
+    });
+    // react with :x:
+    await sillyMessage.react("❌");
+    // delete message when the pinger reacts with :x:
+    const filter = (reaction, user) =>
+      reaction.emoji.name === "❌" &&
+      !user.bot &&
+      user.id === message.author.id;
+    const collector = sillyMessage.createReactionCollector({
+      filter,
+      time: 600_000, // 10 minutes
+    });
+    collector.on("collect", async (reaction, user) => {
+      if (user.id === message.author.id) {
+        await sillyMessage.delete().catch(() => {});
+        // await message.delete().catch(() => {}); // dont delete the original message (just in case its like an announcement or smth idk)
+      } else {
+        // send a message saying you can't delete this message
+        await message.channel.send({
+          content: `You can't delete this message! Only <@${message.author.id}> can.`,
+          allowedMentions: { users: [user.id] },
+          ephemeral: true,
+        });
+      }
     });
   }
 
   if (message.channel.id === COUNTING_CHANNEL_ID) {
-    // show up as typing
-    await message.channel.sendTyping();
     // Read current number, best streak, and last user ID from number.txt
-    let currentNum = 0,
-      bestNum = 0,
-      lastUserId = "";
-    try {
-      const lines = fs.readFileSync(NUMBER_FILE, "utf8").trim().split("\n");
-      currentNum = parseInt(lines[0]);
-      bestNum = parseInt(lines[1]);
-      lastUserId = lines[2] || "";
-      if (isNaN(currentNum)) currentNum = 0;
-      if (isNaN(bestNum)) bestNum = 0;
-    } catch {
-      currentNum = 0;
-      bestNum = 0;
-      lastUserId = "";
-    }
+    let { currentNum, bestNum, lastUserId } = countState;
 
     // Use improved math evaluation from countingService.js
     // Accept math expressions, word numbers, and handle rounding
-    let expr = message.content.trim().replace("²", "^2").replace("³", "^3");
-    // You can add more replacements for other superscript numbers if needed
+    let expr = message.content.trim();
 
     // Try to convert word numbers to digits (simple mapping)
     // You can expand this mapping for more complex phrases
@@ -501,8 +530,15 @@ client.on("messageCreate", async (message) => {
     let errorMessage;
     try {
       // Try to evaluate as math expression
-      mathNumOld = await mathEval(numericExpr);
-      console.log(mathNumOld);
+      mathNumOld = mathjs.evaluate(numericExpr);
+      if (typeof mathNumOld === "number" && !isNaN(mathNumOld)) {
+        mathNumOld = { result: mathNumOld, error: null, newMath: true };
+      } else {
+        // show up as typing
+        await message.channel.sendTyping();
+        mathNumOld = await mathEval(numericExpr);
+      }
+      // console.log(mathNumOld);
       if (mathNumOld.result !== null) {
         mathNum = Math.round(mathNumOld.result);
         isMath =
@@ -517,7 +553,20 @@ client.on("messageCreate", async (message) => {
         numericExpr,
         err.message
       );
-      isMath = false;
+      // mathNum.error = err.message;
+      // isMath = false;
+      // try other math before giving up
+      await message.channel.sendTyping();
+      mathNumOld = await mathEval(numericExpr);
+      // console.log(mathNumOld);
+      if (mathNumOld.result !== null) {
+        mathNum = Math.round(mathNumOld.result);
+        isMath =
+          typeof mathNumOld.result === "number" && !isNaN(mathNumOld.result);
+      } else {
+        isMath = false;
+      }
+      errorMessage = mathNumOld.error || null;
     }
 
     if (isMath) {
@@ -550,22 +599,23 @@ client.on("messageCreate", async (message) => {
           }.`,
           allowedMentions: { users: [] },
         });
-        fs.writeFileSync(NUMBER_FILE, `0\n${bestNum}\n`, "utf8");
+        countState.currentNum = 0;
+        countState.lastUserId = "";
+        countState.bestNum = bestNum;
       } else {
         await message.react("<:yippee:1393457234779967508>");
         // stop typing by sending invisible message and deleting it
-        await message.channel
-          .send({
-            content: "|| ||",
-            allowedMentions: { users: [] },
-          })
-          .then((msg) => msg.delete().catch(() => {}));
+        if (!mathNumOld.newMath) {
+          await message.channel
+            .send({
+              content: "Successfully calculated!",
+            })
+            .then((msg) => msg.delete().catch(() => {}));
+        }
         const newBest = mathNum > bestNum ? mathNum : bestNum;
-        fs.writeFileSync(
-          NUMBER_FILE,
-          `${mathNum}\n${newBest}\n${message.author.id}`,
-          "utf8"
-        );
+        countState.currentNum = mathNum;
+        countState.bestNum = newBest;
+        countState.lastUserId = message.author.id;
       }
     } else {
       const messageSent = await message.channel.send({
@@ -631,5 +681,58 @@ client.on("guildMemberRemove", async (member) => {
     sentMessage.react("<:kitty_cri:1388509582627966987>");
   }
 });
+
+// run code when boosted
+client.on("guildMemberUpdate", async (oldMember, newMember) => {
+  if (oldMember.premiumSince === null && newMember.premiumSince !== null) {
+    const channel = newMember.guild.channels.cache.get(WELCOME_CHANNEL_ID);
+    if (channel) {
+      const embed = new EmbedBuilder()
+        .setColor(0x57f287) // green
+        .setTitle(`HOLY COW TYSM ${newMember.displayName}!`)
+        .setDescription(
+          `you are now a super duper special member of the server! :3\n<@${newMember.id}>`
+        )
+        .setTimestamp()
+        .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }));
+      const sentMessage = await channel.send({
+        content: `the server has **${newMember.guild.premiumSubscriptionCount}** boosts!`,
+        embeds: [embed],
+      });
+      sentMessage.react("<:yippee:1393457234779967508>");
+      // give the user the donator role
+      const donatorRole = newMember.guild.roles.cache.find(
+        (role) => role.id === "1392639801462886703" // replace with your donator role ID
+      );
+      if (donatorRole) {
+        try {
+          await newMember.roles.add(donatorRole);
+          console.log(
+            `Added donator role to ${newMember.displayName} (${newMember.id})`
+          );
+        } catch (err) {
+          console.error(
+            `Failed to add donator role to ${newMember.displayName}:`,
+            err
+          );
+        }
+      } else {
+        console.error("Donator role not found!");
+      }
+    }
+  }
+});
+
+setInterval(() => {
+  try {
+    fs.writeFileSync(
+      NUMBER_FILE,
+      `${countState.currentNum}\n${countState.bestNum}\n${countState.lastUserId}`,
+      "utf8"
+    );
+  } catch (err) {
+    console.error("Failed to save counting state:", err);
+  }
+}, 10_000); // Save every 10 seconds
 
 client.login(TOKEN);
