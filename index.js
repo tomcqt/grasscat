@@ -159,7 +159,7 @@ let activityIndex = 0;
 const activity = [
   {
     type: ActivityType.Listening,
-    name: "to ModMail (dm me!)",
+    name: "your DMs",
   },
   {
     type: ActivityType.Watching,
@@ -167,11 +167,11 @@ const activity = [
   },
   {
     type: ActivityType.Playing,
-    name: "around",
+    name: "around with code",
   },
   {
     type: ActivityType.Competing,
-    name: `counting! (at %countingNum%)`,
+    name: `counting (at %countingNum%)`,
   },
   {
     type: ActivityType.Custom,
