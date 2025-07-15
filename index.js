@@ -171,7 +171,11 @@ const activity = [
   },
   {
     type: ActivityType.Competing,
-    name: `in counting! (at %countingNum%)`,
+    name: `counting! (at %countingNum%)`,
+  },
+  {
+    type: ActivityType.Custom,
+    name: "/help | Running GrassCat v1",
   },
 ];
 
@@ -288,7 +292,7 @@ client.once("ready", async () => {
     if (activityIndex >= activity.length) {
       activityIndex = 0; // Reset index if it exceeds the length
     }
-  }, 10_000); // Update presence every 10 seconds
+  }, 5_000); // Update presence every 5 seconds
 });
 
 // Handle interactions
