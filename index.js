@@ -15,22 +15,23 @@ const {
   ButtonStyle,
   ContextMenuCommandBuilder,
   ApplicationCommandType,
-  GatewayActivityEmoji,
+  // GatewayActivityEmoji, // no longer needed
 } = require("discord.js");
 const mathjs = require("mathjs"); // worse math processor but worked for a while :P
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3"); // ew sql
-const { wordsToNumbers } = require("words-to-numbers"); // ts pmo i HATE THIS PACKAGE
+// const { wordsToNumbers } = require("words-to-numbers"); // ts pmo i HATE THIS PACKAGE
 const { default: mathEval } = require("./mathEval"); // thank uu null <3
 
 const TOKEN = process.env.BOT_TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-const WELCOME_CHANNEL_ID = "1380865201817125025";
-const COUNTING_CHANNEL_ID = "1392847290435375246";
+const WELCOME_CHANNEL_ID = process.env.WELCOME_CHANNEL_ID;
+const COUNTING_CHANNEL_ID = process.env.COUNTING_CHANNEL_ID;
 const NUMBER_FILE = path.join(__dirname, "number.txt");
-const MODMAIL_CATEGORY_ID = "1394427797975597266"; // replace with your modmail category ID
+const MODMAIL_CATEGORY_ID = process.env.MODMAIL_CATEGORY_ID; // replace with your modmail category ID
+const STATUSES_ENABLED = process.env.STATUSES_ENABLED === "true" || false; // enable or disable statuses
 
 const db = new Database(path.join(__dirname, "warnings.db"));
 
@@ -192,28 +193,30 @@ client.once("ready", async () => {
   console.log("tried");
 
   // initial run
-  try {
-    let activityData = activity[activityIndex];
-    activityData.name = activityData.name
-      .replace(
-        "%memberCount%",
-        client.guilds.cache.get(GUILD_ID).memberCount.toString()
-      )
-      .replace("%countingNum%", countState.currentNum.toString());
-    console.log(activityData);
-    client.user.setPresence({
-      activities: [activityData],
-      status: "online",
-    });
-    activityIndex++;
-  } catch (error) {
-    console.error("Failed to fetch guild members:", error);
-    client.user.setPresence({
-      activities: [
-        { name: "Failed to fetch members!", type: ActivityType.Playing },
-      ],
-      status: "idle",
-    });
+  if (STATUSES_ENABLED) {
+    try {
+      let activityData = activity[activityIndex];
+      activityData.name = activityData.name
+        .replace(
+          "%memberCount%",
+          client.guilds.cache.get(GUILD_ID).memberCount.toString()
+        )
+        .replace("%countingNum%", countState.currentNum.toString());
+      console.log(activityData);
+      client.user.setPresence({
+        activities: [activityData],
+        status: "online",
+      });
+      activityIndex++;
+    } catch (error) {
+      console.error("Failed to fetch guild members:", error);
+      client.user.setPresence({
+        activities: [
+          { name: "Failed to fetch members!", type: ActivityType.Playing },
+        ],
+        status: "idle",
+      });
+    }
   }
   try {
     const countingChannel = await client.channels.fetch(COUNTING_CHANNEL_ID);
@@ -265,34 +268,36 @@ client.once("ready", async () => {
     }
   }, 600_000); // Update every 10 minutes
 
-  setInterval(async () => {
-    try {
-      let activityData = activity[activityIndex];
-      activityData.name = activityData.name
-        .replace(
-          "%memberCount%",
-          client.guilds.cache.get(GUILD_ID).memberCount.toString()
-        )
-        .replace("%countingNum%", countState.currentNum.toString());
-      console.log(activityData);
-      client.user.setPresence({
-        activities: [activityData],
-        status: "online",
-      });
-      activityIndex++;
-    } catch (error) {
-      console.error("Failed to update presence:", error);
-      client.user.setPresence({
-        activities: [
-          { name: "Failed to update presence!", type: ActivityType.Playing },
-        ],
-        status: "idle",
-      });
-    }
-    if (activityIndex >= activity.length) {
-      activityIndex = 0; // Reset index if it exceeds the length
-    }
-  }, 5_000); // Update presence every 5 seconds
+  if (STATUSES_ENABLED) {
+    setInterval(async () => {
+      try {
+        let activityData = activity[activityIndex];
+        activityData.name = activityData.name
+          .replace(
+            "%memberCount%",
+            client.guilds.cache.get(GUILD_ID).memberCount.toString()
+          )
+          .replace("%countingNum%", countState.currentNum.toString());
+        console.log(activityData);
+        client.user.setPresence({
+          activities: [activityData],
+          status: "online",
+        });
+        activityIndex++;
+      } catch (error) {
+        console.error("Failed to update presence:", error);
+        client.user.setPresence({
+          activities: [
+            { name: "Failed to update presence!", type: ActivityType.Playing },
+          ],
+          status: "idle",
+        });
+      }
+      if (activityIndex >= activity.length) {
+        activityIndex = 0; // Reset index if it exceeds the length
+      }
+    }, 5_000); // Update presence every 5 seconds
+  }
 });
 
 // Handle interactions
