@@ -198,7 +198,7 @@ client.once("ready", async () => {
       .replace("%countingNum%", countState.currentNum.toString());
     console.log(activityData);
     client.user.setPresence({
-      activities: activityData,
+      activities: [activityData],
       status: "online",
     });
     activityIndex++;
@@ -272,7 +272,7 @@ client.once("ready", async () => {
         .replace("%countingNum%", countState.currentNum.toString());
       console.log(activityData);
       client.user.setPresence({
-        activities: activityData,
+        activities: [activityData],
         status: "online",
       });
       activityIndex++;
