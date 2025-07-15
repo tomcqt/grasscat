@@ -11,6 +11,11 @@ const {
   Partials,
   PermissionsBitField,
   ChannelType,
+  ActionRowBuilder,
+  ButtonStyle,
+  ContextMenuCommandBuilder,
+  ApplicationCommandType,
+  GatewayActivityEmoji,
 } = require("discord.js");
 const mathjs = require("mathjs"); // worse math processor but worked for a while :P
 const fs = require("fs");
@@ -131,12 +136,10 @@ const commands = [
         .setDescription("Number of messages to delete (max 100)")
         .setRequired(true)
     ),
-  new SlashCommandBuilder()
-    .setName("dm")
-    .setDescription("Send a DM to a user (admin only)")
-    .addUserOption((opt) =>
-      opt.setName("user").setDescription("User to DM").setRequired(true)
-    ),
+  // user select menu interaction
+  new ContextMenuCommandBuilder()
+    .setName("Start ModMail Conversation")
+    .setType(ApplicationCommandType.User),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -152,27 +155,53 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
   }
 })();
 
+let activityIndex = 0;
+const activity = [
+  {
+    type: ActivityType.Listening,
+    name: "to ModMail (dm me!)",
+  },
+  {
+    type: ActivityType.Watching,
+    name: `over %memberCount% members`,
+  },
+  {
+    type: ActivityType.Playing,
+    name: "around",
+  },
+  {
+    type: ActivityType.Competing,
+    name: `in counting! (at %countingNum%)`,
+  },
+];
+
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
+
+  // get the status of a user (for debugging)
+  const user = await client.users
+    .fetch("1382458139470860338")
+    .catch(() => null);
+  console.log(user);
+  // log users custom status data
+  console.log(user.presence);
+  console.log("tried");
+
   // initial run
   try {
-    const guild = await client.guilds.fetch(GUILD_ID);
-    const members = await guild.members.fetch();
-    const userCount = members.filter((member) => !member.user.bot).size;
-    const onlineUsers = members.filter(
-      (member) => member.presence && member.presence.status !== "offline"
-    ).size;
+    let activityData = activity[activityIndex];
+    activityData.name = activityData.name
+      .replace(
+        "%memberCount%",
+        client.guilds.cache.get(GUILD_ID).memberCount.toString()
+      )
+      .replace("%countingNum%", countState.currentNum.toString());
+    console.log(activityData);
     client.user.setPresence({
-      activities: [
-        {
-          emoji: "ts pmo",
-          state: `👑 Ruling over ${userCount} users! 👑 (${onlineUsers} online)`,
-          name: "test",
-          type: ActivityType.Custom,
-        },
-      ],
+      activities: activityData,
       status: "online",
     });
+    activityIndex++;
   } catch (error) {
     console.error("Failed to fetch guild members:", error);
     client.user.setPresence({
@@ -208,33 +237,6 @@ client.once("ready", async () => {
   // and then the interval
   setInterval(async () => {
     try {
-      const guild = await client.guilds.fetch(GUILD_ID);
-      const members = await guild.members.fetch();
-      const userCount = members.filter((member) => !member.user.bot).size;
-      const onlineUsers = members.filter(
-        (member) => member.presence && member.presence.status !== "offline"
-      ).size;
-      client.user.setPresence({
-        activities: [
-          {
-            emoji: "ts pmo",
-            state: `👑 Ruling over ${userCount} users! 👑 (${onlineUsers} online)`,
-            name: "test",
-            type: ActivityType.Custom,
-          },
-        ],
-        status: "online",
-      });
-    } catch (error) {
-      console.error("Failed to fetch guild members:", error);
-      client.user.setPresence({
-        activities: [
-          { name: "Failed to fetch members!", type: ActivityType.Playing },
-        ],
-        status: "idle",
-      });
-    }
-    try {
       const countingChannel = await client.channels.fetch(COUNTING_CHANNEL_ID);
       // Read current number and best streak from number.txt
       let currentNum = 0,
@@ -257,12 +259,41 @@ client.once("ready", async () => {
     } catch (err) {
       console.error("Failed to update counting channel topic:", err);
     }
-  }, 60_000); // Update every minute
+  }, 600_000); // Update every 10 minutes
+
+  setInterval(async () => {
+    try {
+      let activityData = activity[activityIndex];
+      activityData.name = activityData.name
+        .replace(
+          "%memberCount%",
+          client.guilds.cache.get(GUILD_ID).memberCount.toString()
+        )
+        .replace("%countingNum%", countState.currentNum.toString());
+      console.log(activityData);
+      client.user.setPresence({
+        activities: activityData,
+        status: "online",
+      });
+      activityIndex++;
+    } catch (error) {
+      console.error("Failed to update presence:", error);
+      client.user.setPresence({
+        activities: [
+          { name: "Failed to update presence!", type: ActivityType.Playing },
+        ],
+        status: "idle",
+      });
+    }
+    if (activityIndex >= activity.length) {
+      activityIndex = 0; // Reset index if it exceeds the length
+    }
+  }, 10_000); // Update presence every 10 seconds
 });
 
 // Handle interactions
 client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+  // if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "ping") {
     await interaction.reply("Pong!");
@@ -445,59 +476,70 @@ client.on("interactionCreate", async (interaction) => {
     });
   }
 
-  if (interaction.commandName === "dm") {
-    // Check for administrator permission
-    if (!interaction.member.permissions.has("Administrator")) {
+  // modmail!
+  if (interaction.isUserContextMenuCommand()) {
+    console.log("got this!");
+    if (interaction.commandName === "Start ModMail Conversation") {
+      console.log("thing!");
+      // Check for administrator permission
+      if (!interaction.member.permissions.has("Administrator")) {
+        await interaction.reply({
+          content: "You need to be an administrator to use this command.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      const user = interaction.targetUser;
+
+      // create channel
+      const guild = await client.guilds.fetch(GUILD_ID);
+      const dmChannelName = `dm-${user.id}`;
+      let dmChannel = guild.channels.cache.find(
+        (ch) => ch.name === dmChannelName && ch.type === ChannelType.GuildText
+      );
+      if (!dmChannel) {
+        // Create the channel if it doesn't exist and put it under the "ModMail" category
+        dmChannel = await guild.channels.create({
+          name: dmChannelName,
+          type: ChannelType.GuildText,
+          parent: MODMAIL_CATEGORY_ID, // this already is private
+          permissionOverwrites: [
+            {
+              id: guild.id,
+              deny: [PermissionsBitField.Flags.ViewChannel], // Deny view for everyone by default
+            },
+          ],
+        });
+      }
       await interaction.reply({
-        content: "You need to be an administrator to use this command.",
+        content: `Channel created or found successfully! <#${dmChannel.id}>`,
         ephemeral: true,
       });
-      return;
-    }
-
-    const user = interaction.options.getUser("user");
-
-    // create channel
-    const guild = await client.guilds.fetch(GUILD_ID);
-    const dmChannelName = `dm-${user.id}`;
-    let dmChannel = guild.channels.cache.find(
-      (ch) => ch.name === dmChannelName && ch.type === ChannelType.GuildText
-    );
-    if (!dmChannel) {
-      // Create the channel if it doesn't exist and put it under the "ModMail" category
-      dmChannel = await guild.channels.create({
-        name: dmChannelName,
-        type: ChannelType.GuildText,
-        parent: MODMAIL_CATEGORY_ID, // this already is private
-        permissionOverwrites: [
-          {
-            id: guild.id,
-            deny: [PermissionsBitField.Flags.ViewChannel], // Deny view for everyone by default
-          },
+      const dmChannelEmbed = new EmbedBuilder()
+        .setColor(0x57f287) // green
+        .setTitle("ModMail with " + user.displayName)
+        .setDescription(
+          `This channel is for DMs with <@${user.id}>.\nYou can send messages here to DM them.\nPress the button on this message to delete the channel.`
+        )
+        .setTimestamp();
+      const pinnedMessage = await dmChannel.send({
+        content: `Channel Info`,
+        embeds: [dmChannelEmbed],
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId("delete_dm_channel")
+              .setLabel("Delete Channel")
+              .setStyle(ButtonStyle.Danger)
+          ),
         ],
       });
+      // pin the message
+      await pinnedMessage.pin().catch(() => {
+        console.error("Failed to pin the DM channel message.");
+      });
     }
-    await interaction.reply(
-      `Channel created or found successfully! <#${dmChannel.id}>`
-    );
-    const dmChannelEmbed = new EmbedBuilder()
-      .setColor(0x57f287) // green
-      .setTitle("DM Channel Created!")
-      .setDescription(
-        `This channel is for DMs with <@${user.id}>. You can send messages here to DM them, or press the button on this message to delete the channel.`
-      )
-      .setFooter({ text: `DM Channel for ${user.tag}` })
-      .setTimestamp();
-    await dmChannel.send({
-      content: `This channel is for DMs with <@${user.id}>. You can send messages here to DM them, or press the button on this message to delete the channel.`,
-      embeds: [dmChannelEmbed],
-      components: [
-        new ButtonBuilder()
-          .setCustomId("delete_dm_channel")
-          .setLabel("Delete Channel")
-          .setStyle("Danger"),
-      ],
-    });
   }
 });
 
@@ -566,25 +608,57 @@ client.on("messageCreate", async (message) => {
           },
         ],
       });
+
+      // channel creation message
+      const dmChannelEmbed = new EmbedBuilder()
+        .setColor(0x57f287) // green
+        .setTitle("ModMail with " + message.author.displayName)
+        .setDescription(
+          `This channel is for DMs with <@${message.author.id}>.\nYou can send messages here to DM them.\nPress the button on this message to delete the channel.`
+        )
+        .setTimestamp();
+      const pinnedMessage = await dmChannel.send({
+        content: `Channel Info`,
+        embeds: [dmChannelEmbed],
+        components: [
+          new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+              .setCustomId("delete_dm_channel")
+              .setLabel("Delete Channel")
+              .setStyle(ButtonStyle.Danger)
+          ),
+        ],
+      });
+      // pin the message
+      await pinnedMessage.pin().catch(() => {
+        console.error("Failed to pin the DM channel message.");
+      });
     }
+
     // send the message to the dm channel
     const dmEmbed = new EmbedBuilder()
       .setColor(0x57f287) // green
-      .setTitle("New DM")
-      .setDescription(message.content)
+      .setTitle(message.content || "[no content]")
       .setAuthor({
-        name: message.author.tag,
+        name: `${message.author.displayName} (@${message.author.tag})`,
         iconURL: message.author.displayAvatarURL({ dynamic: true }),
       })
-      .setFooter({ text: `DM from ${message.author.id}` })
+      .setFooter({ text: `DM sent from DMs` })
       .setTimestamp();
+    let embeds = [dmEmbed];
+    if (message.attachments.size > 0) {
+      // add attachments to embeds
+      embeds.push(
+        ...message.attachments.map((att) => ({
+          title: att.name,
+          url: att.url,
+        }))
+      );
+    }
     await dmChannel.send({
-      content: `New DM from <@${message.author.id}>:`,
-      embeds: [dmEmbed],
+      embeds: embeds,
     });
-  }
-
-  if (message.channel.name.startsWith("dm-")) {
+  } else if (message.channel.name.startsWith("dm-")) {
     // This is a DM channel, handle it
     const userId = message.channel.name.replace("dm-", "");
     const user = await client.users.fetch(userId).catch(() => null);
@@ -593,17 +667,26 @@ client.on("messageCreate", async (message) => {
       // make the dm into a fancy embed
       const dmEmbed = new EmbedBuilder()
         .setColor(0x57f287) // green
-        .setTitle(message.content)
+        .setTitle(message.content || "[no content]")
         .setAuthor({
           name: `${message.author.displayName} (@${message.author.tag})`,
           iconURL: message.author.displayAvatarURL({ dynamic: true }),
         })
         .setFooter({ text: `DM sent from Cat's Community` })
         .setTimestamp();
-      await user.send({ embeds: [dmEmbed] });
+      let embeds = [dmEmbed];
+      if (message.attachments.size > 0) {
+        // add attachments to embeds
+        embeds.push(
+          ...message.attachments.map((att) => ({
+            title: att.name,
+            url: att.url,
+          }))
+        );
+      }
+      await user.send({ embeds: embeds });
       await message.channel.send({
-        content: `DM sent to <@${user.id}>. Content:`,
-        embeds: [dmEmbed],
+        embeds: embeds,
       });
       await message.delete();
     } catch (err) {
