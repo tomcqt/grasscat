@@ -32,8 +32,11 @@ const COUNTING_CHANNEL_ID = process.env.COUNTING_CHANNEL_ID;
 const NUMBER_FILE = path.join(__dirname, "number.txt");
 const MODMAIL_CATEGORY_ID = process.env.MODMAIL_CATEGORY_ID; // replace with your modmail category ID
 const STATUSES_ENABLED = process.env.STATUSES_ENABLED === "true" || false; // enable or disable statuses
+const STARBOARD_CHANNEL_ID = process.env.STARBOARD_CHANNEL_ID;
+const STARBOARD_MINIMUM = process.env.STARBOARD_MINIMUM;
 
 const db = new Database(path.join(__dirname, "warnings.db"));
+const dbStar = new Database(path.join(__dirname, "starboard.db"));
 
 let countState = {
   currentNum: 0,
@@ -54,6 +57,19 @@ db.prepare(
   )
 `
 ).run();
+
+// and the starboard one
+dbStar
+  .prepare(
+    `
+  CREATE TABLE IF NOT EXISTS starboard (
+    message_id TEXT PRIMARY KEY,
+    starboard_message_id TEXT NOT NULL,
+    starred_at TEXT
+  )
+`
+  )
+  .run();
 
 // create number.txt if not exists
 if (!fs.existsSync(NUMBER_FILE)) {
@@ -872,6 +888,99 @@ client.on("messageCreate", async (message) => {
     // If not math, do nothing (let chatting messages stay)
   }
 });
+
+// on reaction (starboard)
+client.on("messageReactionAdd", handleStarUpdate);
+client.on("messageReactionRemove", handleStarUpdate);
+
+async function handleStarUpdate(reaction) {
+  try {
+    if (reaction.partial) await reaction.fetch();
+    const message = reaction.message;
+    const emoji = reaction.emoji.name;
+
+    // Only handle ⭐ reactions
+    if (emoji !== "⭐") return;
+
+    const starCount = reaction.count || reaction.users.cache.size;
+    const starboardChannel = await client.channels.fetch(STARBOARD_CHANNEL_ID);
+    if (!starboardChannel?.isTextBased()) return;
+
+    const existing = dbStar
+      .prepare("SELECT * FROM starboard WHERE message_id = ?")
+      .get(message.id);
+
+    // ⭐ REMOVE (under threshold)
+    if (starCount < STARBOARD_MINIMUM) {
+      if (existing) {
+        try {
+          const starMsg = await starboardChannel.messages.fetch(
+            existing.starboard_message_id
+          );
+          await starMsg.delete();
+        } catch (err) {
+          console.warn("Failed to delete old starboard message:", err);
+        }
+        dbStar
+          .prepare("DELETE FROM starboard WHERE message_id = ?")
+          .run(message.id);
+      }
+      return;
+    }
+
+    // Build embed
+    const embed = {
+      color: 0xffd700,
+      author: {
+        name: message.author?.tag || "Unknown User",
+        icon_url: message.author?.displayAvatarURL({ dynamic: true }),
+      },
+      description: message.content || "[no text]",
+      fields: [
+        {
+          name: "Jump to Message",
+          value: `[Click here](${message.url})`,
+        },
+      ],
+      footer: {
+        text: `⭐ ${starCount} | #${message.channel.name}`,
+      },
+      timestamp: message.createdAt,
+    };
+
+    const attachment = message.attachments.find((a) =>
+      a.contentType?.startsWith("image/")
+    );
+    if (attachment) {
+      embed.image = { url: attachment.url };
+    }
+
+    // ⭐ CREATE or UPDATE
+    if (!existing) {
+      const sent = await starboardChannel.send({ embeds: [embed] });
+      dbStar
+        .prepare(
+          `
+        INSERT INTO starboard (message_id, starboard_message_id, starred_at)
+        VALUES (?, ?, ?)
+      `
+        )
+        .run(message.id, sent.id, new Date().toISOString());
+    } else {
+      // Update existing message
+      try {
+        const starMsg = await starboardChannel.messages.fetch(
+          existing.starboard_message_id
+        );
+        await starMsg.edit({ embeds: [embed] });
+      } catch (err) {
+        console.warn("Failed to edit old starboard message:", err);
+      }
+    }
+  } catch (err) {
+    console.error("Error in starboard handler:", err);
+  }
+}
 
 // join/leave messages
 client.on("guildMemberAdd", async (member) => {
