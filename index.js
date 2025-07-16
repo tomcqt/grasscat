@@ -35,8 +35,8 @@ const STATUSES_ENABLED = process.env.STATUSES_ENABLED === "true" || false; // en
 const STARBOARD_CHANNEL_ID = process.env.STARBOARD_CHANNEL_ID;
 const STARBOARD_MINIMUM = process.env.STARBOARD_MINIMUM;
 
-const db = new Database(path.join(__dirname, "warnings.db"));
-const dbStar = new Database(path.join(__dirname, "starboard.db"));
+const db = new Database(path.join(__dirname, "database.db"));
+// const dbStar = new Database(path.join(__dirname, "starboard.db"));
 
 let countState = {
   currentNum: 0,
@@ -59,17 +59,28 @@ db.prepare(
 ).run();
 
 // and the starboard one
-dbStar
-  .prepare(
-    `
+db.prepare(
+  `
   CREATE TABLE IF NOT EXISTS starboard (
     message_id TEXT PRIMARY KEY,
     starboard_message_id TEXT NOT NULL,
     starred_at TEXT
   )
 `
+).run();
+
+// aaaaaand the leveling one
+db.prepare(
+  `
+  CREATE TABLE IF NOT EXISTS levels (
+    user_id TEXT,
+    guild_id TEXT,
+    xp INTEGER DEFAULT 0,
+    level INTEGER DEFAULT 1,
+    PRIMARY KEY (user_id, guild_id)
   )
-  .run();
+`
+).run();
 
 // create number.txt if not exists
 if (!fs.existsSync(NUMBER_FILE)) {
@@ -153,6 +164,18 @@ const commands = [
         .setDescription("Number of messages to delete (max 100)")
         .setRequired(true)
     ),
+  new SlashCommandBuilder()
+    .setName("rank")
+    .setDescription("Shows your current level and XP.")
+    .addUserOption((opt) =>
+      opt
+        .setName("user")
+        .setDescription("The user to check.")
+        .setRequired(false)
+    ),
+  new SlashCommandBuilder()
+    .setName("top")
+    .setDescription("Shows the top 10 users in this server by level."),
   // user select menu interaction
   new ContextMenuCommandBuilder()
     .setName("Start ModMail Conversation")
@@ -498,6 +521,83 @@ client.on("interactionCreate", async (interaction) => {
     await interaction.reply({
       content: `Deleted ${fetched.size} messages.`,
       ephemeral: true,
+    });
+  }
+
+  if (interaction.commandName === "rank") {
+    const user = interaction.options.getUser("user") || interaction.user;
+    const guildId = interaction.guild.id;
+
+    const data = db
+      .prepare(
+        `
+    SELECT * FROM levels WHERE user_id = ? AND guild_id = ?
+  `
+      )
+      .get(user.id, guildId);
+
+    if (!data) {
+      await interaction.reply({
+        content: `${user.username} has no level data yet.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const nextLevelXp = data.level * 100;
+
+    await interaction.reply({
+      embeds: [
+        {
+          title: `${user.username}'s Rank`,
+          color: 0x00bfff,
+          fields: [
+            { name: "Level", value: `${data.level}`, inline: true },
+            { name: "XP", value: `${data.xp}/${nextLevelXp}`, inline: true },
+          ],
+          thumbnail: { url: user.displayAvatarURL() },
+        },
+      ],
+    });
+  }
+
+  if (interaction.commandName === "top") {
+    const guildId = interaction.guild.id;
+
+    const topUsers = db
+      .prepare(
+        `
+    SELECT user_id, level, xp FROM levels
+    WHERE guild_id = ?
+    ORDER BY level DESC, xp DESC
+    LIMIT 10
+  `
+      )
+      .all(guildId);
+
+    if (topUsers.length === 0) {
+      await interaction.reply("No one has any XP yet!");
+      return;
+    }
+
+    const leaderboard = await Promise.all(
+      topUsers.map(async (u, i) => {
+        const user = await interaction.client.users
+          .fetch(u.user_id)
+          .catch(() => null);
+        const name = user?.username || "Unknown User";
+        return `**${i + 1}.** ${name} — Level ${u.level}, ${u.xp} XP`;
+      })
+    );
+
+    await interaction.reply({
+      embeds: [
+        {
+          title: "🏆 Top 10 Users",
+          description: leaderboard.join("\n"),
+          color: 0xffd700,
+        },
+      ],
     });
   }
 
@@ -887,6 +987,8 @@ client.on("messageCreate", async (message) => {
     }
     // If not math, do nothing (let chatting messages stay)
   }
+
+  parseLevels(message);
 });
 
 // on reaction (starboard)
@@ -906,7 +1008,7 @@ async function handleStarUpdate(reaction) {
     const starboardChannel = await client.channels.fetch(STARBOARD_CHANNEL_ID);
     if (!starboardChannel?.isTextBased()) return;
 
-    const existing = dbStar
+    const existing = db
       .prepare("SELECT * FROM starboard WHERE message_id = ?")
       .get(message.id);
 
@@ -921,9 +1023,9 @@ async function handleStarUpdate(reaction) {
         } catch (err) {
           console.warn("Failed to delete old starboard message:", err);
         }
-        dbStar
-          .prepare("DELETE FROM starboard WHERE message_id = ?")
-          .run(message.id);
+        db.prepare("DELETE FROM starboard WHERE message_id = ?").run(
+          message.id
+        );
       }
       return;
     }
@@ -958,14 +1060,12 @@ async function handleStarUpdate(reaction) {
     // ⭐ CREATE or UPDATE
     if (!existing) {
       const sent = await starboardChannel.send({ embeds: [embed] });
-      dbStar
-        .prepare(
-          `
+      db.prepare(
+        `
         INSERT INTO starboard (message_id, starboard_message_id, starred_at)
         VALUES (?, ?, ?)
       `
-        )
-        .run(message.id, sent.id, new Date().toISOString());
+      ).run(message.id, sent.id, new Date().toISOString());
     } else {
       // Update existing message
       try {
@@ -1087,6 +1187,56 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 });
+
+async function parseLevels(message) {
+  const userId = message.author.id;
+  const guildId = message.guild.id;
+
+  // Give random XP between 10–15
+  const xpToAdd = Math.floor(Math.random() * 6) + 10;
+
+  const row = db
+    .prepare(
+      `
+    SELECT * FROM levels WHERE user_id = ? AND guild_id = ?
+  `
+    )
+    .get(userId, guildId);
+
+  let newXp = xpToAdd;
+  let level = 1;
+
+  if (row) {
+    newXp += row.xp;
+    level = row.level;
+
+    const nextLevelXp = level * 100;
+
+    if (newXp >= nextLevelXp) {
+      level += 1;
+      newXp -= nextLevelXp;
+
+      // You could send a level-up message here
+      message.channel.send({
+        content: `🎉 <@${userId}> You leveled up to **level ${level}**! :DD`,
+        allowedMentions: { users: [userId] },
+      });
+    }
+
+    db.prepare(
+      `
+      UPDATE levels SET xp = ?, level = ? WHERE user_id = ? AND guild_id = ?
+    `
+    ).run(newXp, level, userId, guildId);
+  } else {
+    db.prepare(
+      `
+      INSERT INTO levels (user_id, guild_id, xp, level)
+      VALUES (?, ?, ?, ?)
+    `
+    ).run(userId, guildId, newXp, level);
+  }
+}
 
 setInterval(() => {
   try {
