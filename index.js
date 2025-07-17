@@ -927,18 +927,22 @@ client.on("messageCreate", async (message) => {
       if (message.author.id === lastUserId) {
         await message.delete();
         const errorMsg = await message.channel.send({
-          content: `<@${message.author.id}> You can't count twice in a row! <:nono:1393457236071944232>`,
+          content: `<@${message.author.id}> You can't count twice in a row! <:cat_no:1393457236071944232>`,
           allowedMentions: { users: [message.author.id] },
         });
         setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
         return;
       }
       if (mathNum !== currentNum + 1) {
-        await message.react("<:nono:1393457236071944232>");
+        try {
+          await message.react("<:cat_no:1393457236071944232>");
+        } catch (err) {
+          console.log("hanna you are annoying");
+        }
         const errorMsg = await message.channel.send({
           content: `<@${
             message.author.id
-          }> Wrong number or math! <:nono:1393457236071944232>\nNext should be **${
+          }> Wrong number or math! <:cat_no:1393457236071944232>\nNext should be **${
             currentNum + 1
           }**.\nYour message evaluated to: **${mathNum}** ${
             mathNumOld !== mathNum ? `(rounded from ${mathNumOld})` : ""
@@ -956,7 +960,11 @@ client.on("messageCreate", async (message) => {
         countState.lastUserId = "";
         countState.bestNum = bestNum;
       } else {
-        await message.react("<:yippee:1393457234779967508>");
+        try {
+          await message.react("<:cat_yippee:1393457234779967508>");
+        } catch (err) {
+          console.log("hanna you are annoying");
+        }
         // stop typing by sending invisible message and deleting it
         if (!mathNumOld.newMath) {
           await message.channel
@@ -974,7 +982,7 @@ client.on("messageCreate", async (message) => {
       const messageSent = await message.channel.send({
         content: `<@${
           message.author.id
-        }> I couldn't evaluate that as a number! <:__:1393456922820349953>\nError: ${
+        }> I couldn't evaluate that as a number! <:cat_dotdot:1393456922820349953>\nError: ${
           errorMessage || "Unknown error"
         }  `,
         allowedMentions: { users: [message.author.id] },
@@ -1145,7 +1153,7 @@ client.on("guildMemberUpdate", async (oldMember, newMember) => {
         content: `the server has **${newMember.guild.premiumSubscriptionCount}** boosts!`,
         embeds: [embed],
       });
-      sentMessage.react("<:yippee:1393457234779967508>");
+      sentMessage.react("<:cat_yippee:1393457234779967508>");
       // give the user the donator role
       const donatorRole = newMember.guild.roles.cache.find(
         (role) => role.id === "1392639801462886703" // replace with your donator role ID
