@@ -1197,6 +1197,8 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 async function parseLevels(message) {
+  if (!message.guild) return;
+
   const userId = message.author.id;
   const guildId = message.guild.id;
 
