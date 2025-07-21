@@ -987,10 +987,11 @@ client.on("messageCreate", async (message) => {
         }  `,
         allowedMentions: { users: [message.author.id] },
       });
+      await message.react("<:cat_dotdot:1393456922820349953>"); // :cat_dotdot: custom emoji (in ccc)
       // remove reaction after 5s
       setTimeout(async () => {
         await messageSent.delete().catch(() => {});
-        await message.delete().catch(() => {});
+        await message.reactions.removeAll();
       }, 5000);
     }
     // If not math, do nothing (let chatting messages stay)
@@ -1226,10 +1227,24 @@ async function parseLevels(message) {
       level += 1;
       newXp -= nextLevelXp;
 
+      const levelUpEmbed = new EmbedBuilder()
+        .setColor(0x00b7ff)
+        .setTitle("🎉 You leveled up!")
+        .setDescription(
+          `Level ${
+            level - 1
+          } → Level ${level}\nYou now need ${nextLevelXp} for level ${
+            level + 1
+          }!`
+        )
+        .setTimestamp()
+        .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }));
+
       // You could send a level-up message here
       message.channel.send({
-        content: `🎉 <@${userId}> You leveled up to **level ${level}**! :DD`,
+        content: `<@${userId}>`,
         allowedMentions: { users: [userId] },
+        embeds: [levelUpEmbed],
       });
     }
 
