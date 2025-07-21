@@ -457,7 +457,7 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.commandName === "source") {
     await interaction.reply({
-      content: "https://git.tomcat.sh/grasscat",
+      content: "<https://git.tomcat.sh/grasscat>",
       files: [
         new AttachmentBuilder(
           "https://github.com/tomcqt/grasscat/archive/refs/heads/master.zip",
