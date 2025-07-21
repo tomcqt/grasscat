@@ -244,6 +244,11 @@ client.once("ready", async () => {
   console.log(user.presence);
   console.log("tried");
 
+  await client.user.setPresence({
+    activities: [{ type: ActivityType.Custom, name: "running grasscat v1!" }],
+    status: "online",
+  });
+
   // initial run
   if (STATUSES_ENABLED) {
     try {
