@@ -829,7 +829,7 @@ client.on("messageCreate", async (message) => {
 
     // Use improved math evaluation from countingService.js
     // Accept math expressions, word numbers, and handle rounding
-    let expr = message.content.trim();
+    let expr = message.content.split("\n")[0].trim();
 
     // Try to convert word numbers to digits (simple mapping)
     // You can expand this mapping for more complex phrases
@@ -987,17 +987,55 @@ client.on("messageCreate", async (message) => {
         }  `,
         allowedMentions: { users: [message.author.id] },
       });
-      await message.react("<:cat_dotdot:1393456922820349953>"); // :cat_dotdot: custom emoji (in ccc)
+      try {
+        await message.react("<:cat_dotdot:1393456922820349953>"); // :cat_dotdot: custom emoji (in ccc)
+      } catch (err) {
+        console.warn("Something bad happened!" + err.message);
+      }
       // remove reaction after 5s
       setTimeout(async () => {
         await messageSent.delete().catch(() => {});
-        await message.reactions.removeAll();
+        try {
+          await message.reactions.removeAll();
+        } catch (err) {
+          console.warn("Something bad happened!" + err.message);
+        }
       }, 5000);
     }
     // If not math, do nothing (let chatting messages stay)
   }
 
   parseLevels(message);
+});
+
+client.on("messageDelete", async (message) => {
+  if (message.bot) return;
+
+  if (message.channel.id === COUNTING_CHANNEL_ID) {
+    // check if it was deleted by grasscat
+    const fetchedLogs = await message.guild.fetchAuditLogs({
+      limit: 1,
+      type: AuditLogEvent.MessageDelete,
+    });
+
+    const deletionLog = fetchedLogs.entries.first();
+
+    if (deletionLog) {
+      const { target } = deletionLog;
+
+      if (target.id == client.user.id) {
+        return;
+      }
+    }
+
+    // send message if not
+    const newMsg = await message.channel.send(
+      `${message.content.split("\n")[0].trim()}\n-# Deleted by <@${
+        message.author.id
+      }>`
+    );
+    await newMsg.react("<:cat_yippee:1393457234779967508>");
+  }
 });
 
 // on reaction (starboard)
@@ -1231,14 +1269,12 @@ async function parseLevels(message) {
         .setColor(0x00b7ff)
         .setTitle("🎉 You leveled up!")
         .setDescription(
-          `Level ${
-            level - 1
-          } → Level ${level}\nYou now need ${nextLevelXp} for level ${
-            level + 1
-          }!`
+          `Level ${level - 1} → Level ${level}\nYou now need ${
+            level * 100 - newXp
+          } more XP for level ${level + 1}!`
         )
         .setTimestamp()
-        .setThumbnail(newMember.user.displayAvatarURL({ dynamic: true }));
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }));
 
       // You could send a level-up message here
       message.channel.send({
