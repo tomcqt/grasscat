@@ -368,7 +368,7 @@ class HelpMenu {
         iconURL:
           "https://cdn.discordapp.com/avatars/1176276008773615737/cef9b6f2c44841e40a5436cc74d1a1c3.webp?size=1024",
       })
-      .setFooter(`Page ${pageIndex + 1}/${this.pages.length}`)
+      .setFooter({ text: `Page ${pageIndex + 1}/${this.pages.length}` })
       .setTimestamp()
       .setColor(0x383a40);
 
