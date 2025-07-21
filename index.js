@@ -17,6 +17,8 @@ const {
   ButtonStyle,
   ContextMenuCommandBuilder,
   ApplicationCommandType,
+  AuditLogEvent,
+  AttachmentBuilder,
   // GatewayActivityEmoji, // no longer needed
 } = require("discord.js");
 const mathjs = require("mathjs"); // worse math processor but worked for a while :P
@@ -137,6 +139,15 @@ const client = new Client({
 
 // Register slash commands
 const commands = [
+  new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("Sends the help message!")
+    .addIntegerOption((option) =>
+      option.setName("page").setDescription("Page number").setMinValue(1)
+    ),
+  new SlashCommandBuilder()
+    .setName("source")
+    .setDescription("Sends the source code of the bot!"),
   new SlashCommandBuilder()
     .setName("warn")
     .setDescription("Warn a user (admin only)")
@@ -341,12 +352,119 @@ client.once("ready", async () => {
   }
 });
 
+// Help menu class
+class HelpMenu {
+  constructor(data) {
+    this.pages = data.pages;
+    this.flags = data.flags;
+  }
+
+  generateEmbed(pageIndex) {
+    const pageData = this.pages[pageIndex] || [];
+    const embed = new EmbedBuilder()
+      // .setTitle("grasscat help")
+      .setAuthor({
+        name: "grasscat help",
+        iconURL:
+          "https://cdn.discordapp.com/avatars/1176276008773615737/cef9b6f2c44841e40a5436cc74d1a1c3.webp?size=1024",
+      })
+      .setFooter(`Page ${pageIndex + 1}/${this.pages.length}`)
+      .setTimestamp()
+      .setColor(0x383a40);
+
+    pageData.forEach((cmd) => {
+      const flagText = cmd.flag.map((f) => `**${this.flags[f]}**`).join(" ");
+      embed.addFields({
+        name: cmd.name,
+        value: `${cmd.desc}\n${flagText}`,
+        inline: true,
+      });
+    });
+
+    return embed;
+  }
+
+  createButtons(currentPage) {
+    return new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("prev")
+        .setLabel("◀")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(currentPage === 0),
+
+      new ButtonBuilder()
+        .setCustomId("next")
+        .setLabel("▶")
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(currentPage === this.pages.length - 1)
+    );
+  }
+
+  handlePagination(interaction, userId, currentPage) {
+    const message = interaction.reply({
+      embeds: [this.generateEmbed(currentPage)],
+      components: [this.createButtons(currentPage)],
+      fetchReply: true,
+    });
+
+    message.then((sentMessage) => {
+      const collector = sentMessage.createMessageComponentCollector({
+        filter: (i) => i.user.id === userId,
+        time: 60_000,
+      });
+
+      collector.on("collect", async (i) => {
+        i.deferUpdate();
+        if (i.customId === "next" && currentPage < this.pages.length - 1) {
+          currentPage++;
+        } else if (i.customId === "prev" && currentPage > 0) {
+          currentPage--;
+        }
+
+        await interaction.editReply({
+          embeds: [this.generateEmbed(currentPage)],
+          components: [this.createButtons(currentPage)],
+        });
+      });
+
+      collector.on("end", () => {
+        interaction.editReply({ components: [] });
+      });
+    });
+  }
+}
+
+const helpData = JSON.parse(fs.readFileSync("help.json", "utf-8"));
+
 // Handle interactions
 client.on("interactionCreate", async (interaction) => {
   // if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "ping") {
     await interaction.reply("Pong!");
+  }
+
+  if (interaction.commandName === "help") {
+    const pageInput = interaction.options.getInteger("page") || 1;
+    const helpMenu = new HelpMenu(helpData);
+    let currentPage = Math.max(
+      0,
+      Math.min(pageInput - 1, helpData.pages.length - 1)
+    );
+
+    helpMenu.handlePagination(interaction, interaction.user.id, currentPage);
+  }
+
+  if (interaction.commandName === "source") {
+    await interaction.reply({
+      content: "https://git.tomcat.sh/grasscat",
+      files: [
+        new AttachmentBuilder(
+          "https://github.com/tomcqt/grasscat/archive/refs/heads/master.zip",
+          { name: "source.zip" }
+        ),
+      ],
+    });
   }
 
   if (interaction.commandName === "warn") {
@@ -927,6 +1045,7 @@ client.on("messageCreate", async (message) => {
     if (isMath) {
       // Prevent same user twice in a row
       if (message.author.id === lastUserId) {
+        await message.react("<:cat_dotdot:1393456922820349953>");
         await message.delete();
         const errorMsg = await message.channel.send({
           content: `<@${message.author.id}> You can't count twice in a row! <:cat_no:1393457236071944232>`,
@@ -1008,22 +1127,22 @@ client.on("messageCreate", async (message) => {
 
 client.on("messageDelete", async (message) => {
   if (message.bot) return;
+  try {
+    if (message.author.id === CLIENT_ID) return;
+  } catch (err) {
+    return;
+  }
 
   if (message.channel.id === COUNTING_CHANNEL_ID) {
     // check if it was deleted by grasscat
-    const fetchedLogs = await message.guild.fetchAuditLogs({
-      limit: 1,
-      type: AuditLogEvent.MessageDelete,
-    });
-
-    const deletionLog = fetchedLogs.entries.first();
-
-    if (deletionLog) {
-      const { target } = deletionLog;
-
-      if (target.id == client.user.id) {
-        return;
+    let isGrasscat;
+    message.reactions.cache.forEach((i) => {
+      if (i.emoji.id === "1393456922820349953") {
+        isGrasscat = true;
       }
+    });
+    if (isGrasscat) {
+      return;
     }
 
     // send message if not
