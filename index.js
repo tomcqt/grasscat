@@ -995,11 +995,7 @@ client.on("messageCreate", async (message) => {
       // remove reaction after 5s
       setTimeout(async () => {
         await messageSent.delete().catch(() => {});
-        try {
-          await message.reactions.removeAll();
-        } catch (err) {
-          console.warn("Something bad happened!" + err.message);
-        }
+        await message.delete().catch(() => {});
       }, 5000);
     }
     // If not math, do nothing (let chatting messages stay)
