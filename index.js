@@ -428,7 +428,10 @@ class HelpMenu {
       });
 
       collector.on("end", () => {
-        interaction.editReply({ components: [] });
+        interaction.editReply({
+          content: "message interaction window expired.",
+          components: [],
+        });
       });
     });
   }
@@ -706,7 +709,9 @@ client.on("interactionCreate", async (interaction) => {
           .fetch(u.user_id)
           .catch(() => null);
         const name = user?.username || "Unknown User";
-        return `**${i + 1}.** ${name} — Level ${u.level}, ${u.xp} XP`;
+        return `**${i + 1}.** ${name.replace("_", "\\_")} — Level ${u.level}, ${
+          u.xp
+        } XP`;
       })
     );
 
