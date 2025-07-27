@@ -803,11 +803,12 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
   // Check if the bot is mentioned
-  if (message.mentions.has(client.user)) {
+  if (message.mentions.has(client.user) && message.contains(CLIENT_ID)) {
+    // only pings, not replies
     // Your response or logic here
     const sillyMessage = await message.reply({
       content:
-        `## hey twin, i'm <@${client.user.id}>!\n` +
+        `## hey there, i'm <@${client.user.id}>!\n` +
         " i manage this server and can help you with certain things!\n" +
         "- if you need help, you can do `/help` to see what i can do, or press the button below.\n" +
         "- if you want to see my source code, you can do `/source`.\n" +
@@ -1278,7 +1279,7 @@ client.on("guildMemberAdd", async (member) => {
     const members = await guild.members.fetch();
     const memberCount = members.filter((member) => !member.user.bot).size;
     await member.send({
-      content: `# welcome to cat's community! :3\ni'm <@${client.user.id}>, your new (not so evil) robot overlord.\nyou are joining ${memberCount} other users.\n## have a nice stay!\n\n-# if you need help, you can always do \`/help\` to see my commands.`,
+      content: `# welcome to cat's community! :3\n- you can now go through the onboarding setup and get access to the server.\n- i'm <@${client.user.id}>, your new (not so evil) robot overlord.\n- you are joining ${memberCount} other users.\n## have a nice stay!\n\n-# if you need help, you can always mention me to see a help message.`,
     });
   } catch (err) {
     console.error(`Could not send DM to ${member.displayName}:`, err);
@@ -1366,7 +1367,12 @@ async function parseLevels(message) {
   if (!message.guild) return;
 
   // no cheating in threads (this is talking to you eva (secret mwah)
-  if (message.channel.type === ChannelType.PublicThread || message.channel.type === ChannelType.PrivateThread || message.channel.type === ChannelType.AnnouncementThread) return;
+  if (
+    message.channel.type === ChannelType.PublicThread ||
+    message.channel.type === ChannelType.PrivateThread ||
+    message.channel.type === ChannelType.AnnouncementThread
+  )
+    return;
 
   const userId = message.author.id;
   const guildId = message.guild.id;
