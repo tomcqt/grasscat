@@ -1,0 +1,46 @@
+{
+  "pages": [
+    [
+      {
+        "name": "/help",
+        "desc": "Sends this message!",
+        "flag": []
+      },
+      {
+        "name": "/source",
+        "desc": "Sends the source code of the bot.",
+        "flag": []
+      },
+      {
+        "name": "/rank",
+        "desc": "Shows your (or another users) current level and XP.",
+        "flag": []
+      },
+      {
+        "name": "/top",
+        "desc": "Shows the top 10 users in the server by level.",
+        "flag": []
+      },
+      {
+        "name": "/warn",
+        "desc": "Warn a user.",
+        "flag": ["admin"]
+      },
+      {
+        "name": "/warnings",
+        "desc": "Shows the warnings for a user.",
+        "flag": []
+      }
+    ],
+    [
+      {
+        "name": "/purge",
+        "desc": "Delete a number of messages from the current channel.",
+        "flag": ["admin"]
+      }
+    ]
+  ],
+  "flags": {
+    "admin": "Admin Only"
+  }
+}
