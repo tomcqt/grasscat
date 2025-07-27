@@ -892,6 +892,28 @@ client.on("messageCreate", async (message) => {
     }
 
     // send the message to the dm channel
+    const webhooks = await dmChannel.fetchWebhooks();
+    let webhook = webhooks.find((wh) => wh.name === "dm hook");
+
+    // create webhook if it doesn't exist
+    if (!webhook) {
+      webhook = await dmChannel.createWebhook({
+        name: "dm hook",
+        avatar: client.user.displayAvatarURL(),
+        reason:
+          "Sending ModMail messages properly!\nCreated automatically.\nDO NOT DELETE!!",
+      });
+    }
+
+    await webhook.send({
+      content: message.content || "-# [no content]",
+      username: message.author.displayName || message.author.username,
+      avatarURL: message.author.displayAvatarURL({ dynamic: true }),
+      embeds: message.embeds.map((embed) => EmbedBuilder.from(embed)),
+      files: message.attachments.values(),
+    });
+
+    /*
     const dmEmbed = new EmbedBuilder()
       .setColor(0x57f287) // green
       .setTitle(message.content || "[no content]")
@@ -914,6 +936,7 @@ client.on("messageCreate", async (message) => {
     await dmChannel.send({
       embeds: embeds,
     });
+    */
   } else if (message.channel.name.startsWith("dm-")) {
     // This is a DM channel, handle it
     const userId = message.channel.name.replace("dm-", "");
@@ -941,10 +964,6 @@ client.on("messageCreate", async (message) => {
         );
       }
       await user.send({ embeds: embeds });
-      await message.channel.send({
-        embeds: embeds,
-      });
-      await message.delete();
     } catch (err) {
       console.error("Failed to send DM:", err);
       await message.channel.send({
