@@ -909,8 +909,8 @@ client.on("messageCreate", async (message) => {
       content: message.content || "-# [no content]",
       username: message.author.displayName || message.author.username,
       avatarURL: message.author.displayAvatarURL({ dynamic: true }),
-      embeds: message.embeds.map((embed) => EmbedBuilder.from(embed)),
-      files: message.attachments.values(),
+      embeds: message.embeds,
+      files: message.files,
     });
 
     /*
