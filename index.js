@@ -764,6 +764,10 @@ client.on("interactionCreate", async (interaction) => {
               id: guild.id,
               deny: [PermissionsBitField.Flags.ViewChannel], // Deny view for everyone by default
             },
+            {
+              id: "1391401986598899712",
+              allow: [PermissionsBitField.Flags.ViewChannel],
+            },
           ],
         });
       }
