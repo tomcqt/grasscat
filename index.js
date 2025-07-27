@@ -236,13 +236,13 @@ client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   // get the status of a user (for debugging)
-  const user = await client.users
-    .fetch("1382458139470860338")
-    .catch(() => null);
-  console.log(user);
-  // log users custom status data
-  console.log(user.presence);
-  console.log("tried");
+  // const user = await client.users
+  //   .fetch("1382458139470860338")
+  //   .catch(() => null);
+  // console.log(user);
+  // // log users custom status data
+  // console.log(user.presence);
+  // console.log("tried");
 
   await client.user.setPresence({
     activities: [{ type: ActivityType.Custom, name: "running grasscat v1!" }],
@@ -733,9 +733,9 @@ client.on("interactionCreate", async (interaction) => {
 
   // modmail!
   if (interaction.isUserContextMenuCommand()) {
-    console.log("got this!");
+    // console.log("got this!");
     if (interaction.commandName === "Start ModMail Conversation") {
-      console.log("thing!");
+      // console.log("thing!");
       // Check for administrator permission
       if (!interaction.member.permissions.has("Administrator")) {
         await interaction.reply({
@@ -844,7 +844,7 @@ client.on("messageCreate", async (message) => {
 
   // dms
   if (!message.guild) {
-    console.log("caught dm");
+    // console.log("caught dm");
     // send message to dm channel or create one then send if it doesnt exist
     const guild = await client.guilds.fetch(GUILD_ID);
     const dmChannelName = `dm-${message.author.id}`;
