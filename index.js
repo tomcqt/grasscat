@@ -19,6 +19,7 @@ const {
   ApplicationCommandType,
   AuditLogEvent,
   AttachmentBuilder,
+  MessageManager,
   // GatewayActivityEmoji, // no longer needed
 } = require("discord.js");
 const mathjs = require("mathjs"); // worse math processor but worked for a while :P
@@ -805,6 +806,16 @@ client.on("interactionCreate", async (interaction) => {
 client.on("messageCreate", async (message) => {
   // Ignore messages from bots
   if (message.author.bot) return;
+
+  // silly message forwarding through "<message>"
+  if (
+    message.content.startsWith("<") &&
+    message.content.endsWith(">") &&
+    message.author.id === "1059605055411601429"
+  ) {
+    await message.delete();
+    await message.channel.send(message.content);
+  }
 
   // Check if the bot is mentioned
   if (message.mentions.has(client.user) && message.contains(CLIENT_ID)) {
