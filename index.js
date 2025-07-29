@@ -815,7 +815,14 @@ client.on("messageCreate", async (message) => {
   ) {
     // const finalMessage = message.content.slice(1, -1);
     await message.delete();
-    await message.channel.send(message.content.slice(1, -1));
+    if (message.reference) {
+      const original = await message.channel.messages.fetch(
+        message.reference.messageId
+      );
+      await original.reply(message.content.slice(1, -1));
+    } else {
+      await message.channel.send(message.content.slice(1, -1));
+    }
   }
 
   // Check if the bot is mentioned
