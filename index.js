@@ -826,7 +826,10 @@ client.on("messageCreate", async (message) => {
   }
 
   // Check if the bot is mentioned
-  if (message.mentions.has(client.user) && message.contains(CLIENT_ID)) {
+  if (
+    message.mentions.has(client.user) &&
+    message.content.contains(CLIENT_ID)
+  ) {
     // only pings, not replies
     // Your response or logic here
     const sillyMessage = await message.reply({
