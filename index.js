@@ -813,8 +813,9 @@ client.on("messageCreate", async (message) => {
     message.content.endsWith(">") &&
     message.author.id === "1059605055411601429"
   ) {
+    // const finalMessage = message.content.slice(1, -1);
     await message.delete();
-    await message.channel.send(message.content);
+    await message.channel.send(message.content.slice(1, -1));
   }
 
   // Check if the bot is mentioned
