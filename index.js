@@ -811,7 +811,8 @@ client.on("messageCreate", async (message) => {
   if (
     message.content.startsWith("<") &&
     message.content.endsWith(">") &&
-    message.author.id === "1059605055411601429"
+    message.author.id === "1059605055411601429" &&
+    !message.content.startsWith("<@")
   ) {
     // const finalMessage = message.content.slice(1, -1);
     await message.delete();
@@ -828,7 +829,7 @@ client.on("messageCreate", async (message) => {
   // Check if the bot is mentioned
   if (
     message.mentions.has(client.user) &&
-    message.content.contains(CLIENT_ID)
+    message.content.includes(CLIENT_ID)
   ) {
     // only pings, not replies
     // Your response or logic here
