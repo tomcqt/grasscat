@@ -1514,7 +1514,9 @@ client.on("autoModerationActionExecution", async (execution) => {
         description:
           "moderators have been given a copy of your message and will review be reviewing it.\nplease refrain from using the following word(s) below again.",
         timestamp: new Date().toISOString(),
-        footer: "this message will delete after 10 seconds",
+        footer: {
+          text: "this message will delete after 10 seconds",
+        },
         color: 0xff6961,
       },
     ],
