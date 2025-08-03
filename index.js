@@ -1502,6 +1502,14 @@ client.on("autoModerationActionExecution", async (execution) => {
   console.log(`🔒 AutoMod action for ${user.tag} in #${channel.name}`);
   console.log(`Triggered content:`, matchedContent);
 
+  const types = [
+    "unknown type",
+    "unknown type",
+    "unknown type",
+    "unknown type",
+    "Block Commonly Flagged Words",
+  ];
+
   const sent = await channel.send({
     content: `<@${userId}>`,
     embeds: [
