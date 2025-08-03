@@ -1495,19 +1495,23 @@ client.on("autoModerationActionExecution", async (execution) => {
     guildId,
   } = execution;
 
+  if (action.type !== 1) return;
+
   const user = await client.users.fetch(userId);
   const channel = await client.channels.fetch(channelId);
 
-  // Example: log it to console or a mod-log channel
-  console.log(`🔒 AutoMod action for ${user.tag} in #${channel.name}`);
-  console.log(`Triggered content:`, matchedContent);
+  // console.log(`🔒 AutoMod action for ${user.tag} in #${channel.name}`);
+  // console.log(`Triggered content:`, matchedContent);
+  // console.log(`Type ID: ${ruleTriggerType}`);
+  // console.log(`Action: ${action}`);
+  // console.log(action);
 
   const types = [
-    "unknown type",
-    "unknown type",
-    "unknown type",
-    "unknown type",
-    "Block Commonly Flagged Words",
+    "unknown (a)",
+    "custom flags",
+    "unknown (b)",
+    "unknown (c)",
+    "commonly flagged words",
   ];
 
   const sent = await channel.send({
@@ -1517,10 +1521,10 @@ client.on("autoModerationActionExecution", async (execution) => {
         title: "uh oh... you just got chat filtered",
         fields: [
           { name: "blocked word", value: `||${matchedContent}||` || "[none]" },
-          { name: "rule triggered", value: `*${ruleTriggerType}*` },
+          { name: "rule triggered", value: `*${types[ruleTriggerType]}*` },
         ],
         description:
-          "moderators have been given a copy of your message and will review be reviewing it.\nplease refrain from using the following word(s) below again.",
+          "moderators have been given a copy of your message to review.\nplease refrain from using the following word(s) below again.",
         timestamp: new Date().toISOString(),
         footer: {
           text: "this message will delete after 10 seconds",
