@@ -1481,6 +1481,50 @@ async function parseLevels(message) {
   }
 }
 
+// automod message
+client.on("autoModerationActionExecution", async (execution) => {
+  console.log("⚠️ AutoMod Triggered:", execution);
+
+  const {
+    action,
+    ruleId,
+    ruleTriggerType,
+    matchedContent,
+    userId,
+    channelId,
+    guildId,
+  } = execution;
+
+  const user = await client.users.fetch(userId);
+  const channel = await client.channels.fetch(channelId);
+
+  // Example: log it to console or a mod-log channel
+  console.log(`🔒 AutoMod action for ${user.tag} in #${channel.name}`);
+  console.log(`Triggered content:`, matchedContent);
+
+  const sent = await channel.send({
+    content: `<@${userId}>`,
+    embeds: [
+      {
+        title: "uh oh... you just got chat filtered",
+        fields: [
+          { name: "blocked word", value: `||${matchedContent}||` || "[none]" },
+          { name: "rule triggered", value: `*${ruleTriggerType}*` },
+        ],
+        description:
+          "moderators have been given a copy of your message and will review be reviewing it.\nplease refrain from using the following word(s) below again.",
+        timestamp: new Date().toISOString(),
+        footer: "this message will delete after 10 seconds",
+        color: 0xff6961,
+      },
+    ],
+  });
+
+  setTimeout(() => {
+    sent.delete().catch(console.error);
+  }, 10_000);
+});
+
 setInterval(() => {
   try {
     fs.writeFileSync(
