@@ -1483,7 +1483,7 @@ async function parseLevels(message) {
 
 // automod message
 client.on("autoModerationActionExecution", async (execution) => {
-  console.log("⚠️ AutoMod Triggered:", execution);
+  // console.log("⚠️ AutoMod Triggered:", execution);
 
   const {
     action,
