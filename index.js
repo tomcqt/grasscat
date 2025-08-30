@@ -809,10 +809,13 @@ client.on("messageCreate", async (message) => {
 
   // silly message forwarding through "<message>"
   if (
-    message.content.startsWith("<") &&
+    (message.content.startsWith("<") || message.content.startsWith("edit<")) &&
     message.content.endsWith(">") &&
     message.author.id === "1059605055411601429" &&
-    !message.content.startsWith("<@")
+    !message.content.startsWith("<@") && // not mentions
+    !message.content.startsWith("<#") && // not channels
+    !message.content.startsWith("<:") && // not emojis
+    !message.content.startsWith("<a:") // not animated emojis
   ) {
     // const finalMessage = message.content.slice(1, -1);
     await message.delete();
@@ -820,7 +823,11 @@ client.on("messageCreate", async (message) => {
       const original = await message.channel.messages.fetch(
         message.reference.messageId
       );
-      await original.reply(message.content.slice(1, -1));
+      if (message.content.startsWith("edit<")) {
+        await original.edit(message.content.slice(5, -1));
+      } else {
+        await original.reply(message.content.slice(1, -1));
+      }
     } else {
       await message.channel.send(message.content.slice(1, -1));
     }
