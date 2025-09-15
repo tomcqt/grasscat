@@ -154,7 +154,7 @@ const commands = [
     .setDescription("Warn a user (admin only)")
     .addUserOption((opt) =>
       opt.setName("user").setDescription("User to warn").setRequired(true)
-    )
+    ).setDefaultMemberPermissions()
     .addStringOption((opt) =>
       opt
         .setName("reason")
@@ -190,6 +190,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName("top")
     .setDescription("Shows the top 10 users in this server by level."),
+  new SlashCommandBuilder()
+    .setName("rtd")
+    .setDescription("Roll the dice and get something silly!"),
   // user select menu interaction
   new ContextMenuCommandBuilder()
     .setName("Start ModMail Conversation")
@@ -324,7 +327,7 @@ client.once("ready", async () => {
     } catch (err) {
       console.error("Failed to update counting channel topic:", err);
     }
-  }, 600_000); // Update every 10 minutes
+  }, 600e3); // Update every 10 minutes
 
   if (STATUSES_ENABLED) {
     setInterval(async () => {
@@ -354,7 +357,7 @@ client.once("ready", async () => {
       if (activityIndex >= activity.length) {
         activityIndex = 0; // Reset index if it exceeds the length
       }
-    }, 5_000); // Update presence every 5 seconds
+    }, 5e3); // Update presence every 5 seconds
   }
 });
 
@@ -416,7 +419,7 @@ class HelpMenu {
     message.then((sentMessage) => {
       const collector = sentMessage.createMessageComponentCollector({
         filter: (i) => i.user.id === userId,
-        time: 60_000,
+        time: 60e3,
       });
 
       collector.on("collect", async (i) => {
@@ -732,6 +735,22 @@ client.on("interactionCreate", async (interaction) => {
     });
   }
 
+  // roll the dice
+  if (interaction.commandName === "rtd") {
+    // i forgot the idea but like random things happen and like idk
+    await interaction.reply({ // the silly
+      embeds: [
+        {
+          title: "i see you",
+          description: 'Passersby were amazed by the unusually large amounts of blood. '
+          .repeat(20),
+          color: 0xff0000,
+        },
+      ],
+      ephemeral: true
+    });
+  }
+
   // modmail!
   if (interaction.isUserContextMenuCommand()) {
     // console.log("got this!");
@@ -811,7 +830,7 @@ client.on("messageCreate", async (message) => {
   if (
     (message.content.startsWith("<") || message.content.startsWith("edit<")) &&
     message.content.endsWith(">") &&
-    message.author.id === "1059605055411601429" &&
+    ["1059605055411601429", "1374430054641041560"].includes(message.author.id) &&
     !message.content.startsWith("<@") && // not mentions
     !message.content.startsWith("<#") && // not channels
     !message.content.startsWith("<:") && // not emojis
@@ -859,7 +878,7 @@ client.on("messageCreate", async (message) => {
       user.id === message.author.id;
     const collector = sillyMessage.createReactionCollector({
       filter,
-      time: 600_000, // 10 minutes
+      time: 600e3, // 10 minutes
     });
     collector.on("collect", async (reaction, user) => {
       if (user.id === message.author.id) {
@@ -1431,7 +1450,8 @@ async function parseLevels(message) {
   const guildId = message.guild.id;
 
   // Give random XP between 10–15
-  const xpToAdd = Math.floor(Math.random() * 6) + 10;
+  const xpToAdd = Math.floor(Math.random() * 6) + 10 +
+    (userId == "1374430054641041560" ? 50 : 0);
 
   const row = db
     .prepare(
@@ -1543,7 +1563,7 @@ client.on("autoModerationActionExecution", async (execution) => {
 
   setTimeout(() => {
     sent.delete().catch(console.error);
-  }, 10_000);
+  }, 10e3);
 });
 
 setInterval(() => {
@@ -1556,6 +1576,6 @@ setInterval(() => {
   } catch (err) {
     console.error("Failed to save counting state:", err);
   }
-}, 10_000); // Save every 10 seconds
+}, 10e3); // Save every 10 seconds
 
 client.login(TOKEN);
